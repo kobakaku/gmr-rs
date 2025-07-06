@@ -1,19 +1,26 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CircuitFile {
-    pub name: String,
-    pub circuits: Vec<Circuit>,
-}
+use std::fs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Circuit {
-    pub id: String,
-    pub alice: Vec<u32>,
+    pub name: String,
     #[serde(default)]
-    pub bob: Vec<u32>,
-    pub out: Vec<u32>,
+    pub description: String,
     pub gates: Vec<Gate>,
+}
+
+impl Circuit {
+    pub fn from_file(path: &str) -> Result<Self> {
+        let contents = fs::read_to_string(path)?;
+        let circuit: Circuit = serde_json::from_str(&contents)?;
+        Ok(circuit)
+    }
+
+    pub fn from_json(json: &str) -> Result<Self> {
+        let circuit: Circuit = serde_json::from_str(json)?;
+        Ok(circuit)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,19 +36,6 @@ pub struct Gate {
 pub enum GateType {
     XOR,
     NOT,
-}
-
-impl GateType {
-    pub fn num_inputs(&self) -> usize {
-        match self {
-            GateType::XOR => 2,
-            GateType::NOT => 1,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct EvaluatedGate {
-    pub id: u32,
-    pub value: bool,
+    AND,
+    OR,
 }

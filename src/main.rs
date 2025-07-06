@@ -1,53 +1,101 @@
-use gmw_rs::*;
+use anyhow::Result;
+use gmw_rs::{evaluate_circuit_two_party, reconstruct_shares, secret_share, Circuit};
+use std::collections::HashMap;
+use std::env;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("GMW Protocol Implementation - XOR and NOT gates only");
+fn main() -> Result<()> {
+    let args: Vec<String> = env::args().collect();
 
-    let circuit_file = load_circuit_from_file("circuits/simple.json")?;
-    println!("Loaded circuit file: {}", circuit_file.name);
+    if args.len() == 4 {
+        // Format: cargo run -- <circuit_file> <input1> <input2>
+        let circuit_file = &args[1];
+        let input1 = args[2].parse::<u8>()? != 0;
+        let input2 = args[3].parse::<u8>()? != 0;
+        run_two_input_circuit(circuit_file, input1, input2)?;
+    } else if args.len() == 3 {
+        // Format: cargo run -- <circuit_file> <input>
+        let circuit_file = &args[1];
+        let input = args[2].parse::<u8>()? != 0;
+        run_single_input_circuit(circuit_file, input)?;
+    } else {
+        println!("Usage:");
+        println!("  cargo run -- <circuit.json> <input>         - Single input circuit (NOT)");
+        println!(
+            "  cargo run -- <circuit.json> <input1> <input2> - Two input circuit (AND/OR/XOR)"
+        );
+        println!("Examples:");
+        println!("  cargo run -- circuits/not.json 1");
+        println!("  cargo run -- circuits/and.json 1 0");
+    }
 
-    let circuit = get_circuit_by_id(&circuit_file, "XOR_NOT_example").ok_or("Circuit not found")?;
+    Ok(())
+}
 
-    println!("Running circuit: {}", circuit.id);
+fn run_single_input_circuit(circuit_file: &str, input: bool) -> Result<()> {
+    let circuit = Circuit::from_file(circuit_file)?;
 
-    // Test case 1: true XOR false = true, NOT(true) = false
-    let alice_input = true;
-    let bob_input = false;
+    // Create secret shares
+    let (alice_share, bob_share) = secret_share(input);
 
-    let (alice_share_input1, bob_share_input1) = secret_share(alice_input);
-    let (alice_share_input2, bob_share_input2) = secret_share(bob_input);
+    // Set up input shares
+    let mut alice_shares = HashMap::new();
+    let mut bob_shares = HashMap::new();
 
-    let mut alice = Party::new(0);
-    let mut bob = Party::new(1);
+    alice_shares.insert(1, alice_share); // wire 1: input
+    bob_shares.insert(1, bob_share);
 
-    alice.set_share(circuit.alice[0], alice_share_input1);
-    bob.set_share(circuit.alice[0], bob_share_input1);
+    // Evaluate circuit
+    let (alice_output, bob_output) =
+        evaluate_circuit_two_party(&circuit, &alice_shares, &bob_shares)?;
 
-    alice.set_share(circuit.bob[0], alice_share_input2);
-    bob.set_share(circuit.bob[0], bob_share_input2);
+    // Reconstruct result
+    let result = reconstruct_shares(alice_output, bob_output);
 
-    alice.evaluate_circuit(circuit);
-    bob.evaluate_circuit(circuit);
+    println!("Input: {input} -> Output: {result}");
 
-    let output_wire = circuit.out[0];
-    let alice_output = alice.get_share(output_wire).unwrap();
-    let bob_output = bob.get_share(output_wire).unwrap();
+    // Calculate expected result
+    let expected = match circuit.name.as_str() {
+        "NOT_gate" => !input,
+        _ => !input, // Default for single input
+    };
+    assert_eq!(result, expected);
 
-    let final_result = reconstruct_shares(alice_output, bob_output);
+    Ok(())
+}
 
-    println!("Alice input: {alice_input}");
-    println!("Bob input: {bob_input}");
-    println!("Alice shares: input1={alice_share_input1}, input2={alice_share_input2}");
-    println!("Bob shares: input1={bob_share_input1}, input2={bob_share_input2}");
-    println!("Alice output share: {alice_output}");
-    println!("Bob output share: {bob_output}");
-    println!("Final result: {final_result}");
+fn run_two_input_circuit(circuit_file: &str, input1: bool, input2: bool) -> Result<()> {
+    let circuit = Circuit::from_file(circuit_file)?;
 
-    let xor_result = alice_input ^ bob_input;
-    let expected = !xor_result;
-    println!("XOR result: {xor_result}");
-    println!("Expected result: {expected} (NOT(XOR({alice_input}, {bob_input})))");
-    println!("Result matches: {}", final_result == expected);
+    // Create secret shares
+    let (alice_share1, bob_share1) = secret_share(input1);
+    let (alice_share2, bob_share2) = secret_share(input2);
+
+    // Set up input shares
+    let mut alice_shares = HashMap::new();
+    let mut bob_shares = HashMap::new();
+
+    alice_shares.insert(1, alice_share1); // wire 1: input1
+    alice_shares.insert(2, alice_share2); // wire 2: input2
+    bob_shares.insert(1, bob_share1);
+    bob_shares.insert(2, bob_share2);
+
+    // Evaluate circuit
+    let (alice_output, bob_output) =
+        evaluate_circuit_two_party(&circuit, &alice_shares, &bob_shares)?;
+
+    // Reconstruct result
+    let result = reconstruct_shares(alice_output, bob_output);
+
+    println!("Inputs: {input1} & {input2} -> Output: {result}");
+
+    // Calculate expected result
+    let expected = match circuit.name.as_str() {
+        "AND_gate" => input1 & input2,
+        "OR_gate" => input1 | input2,
+        "XOR_gate" => input1 ^ input2,
+        _ => input1 & input2, // Default
+    };
+    assert_eq!(result, expected);
 
     Ok(())
 }
