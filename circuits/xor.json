@@ -1,0 +1,11 @@
+{
+  "name": "XOR_gate",
+  "description": "Simple XOR gate",
+  "gates": [
+    {
+      "id": 3,
+      "type": "XOR",
+      "in": [1, 2]
+    }
+  ]
+}

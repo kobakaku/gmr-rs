@@ -1,0 +1,11 @@
+{
+  "name": "OR_gate",
+  "description": "Simple OR gate using De Morgan's law",
+  "gates": [
+    {
+      "id": 3,
+      "type": "OR",
+      "in": [1, 2]
+    }
+  ]
+}

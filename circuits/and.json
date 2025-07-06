@@ -1,0 +1,11 @@
+{
+  "name": "AND_gate",
+  "description": "Simple AND gate using OT protocol",
+  "gates": [
+    {
+      "id": 3,
+      "type": "AND",
+      "in": [1, 2]
+    }
+  ]
+}

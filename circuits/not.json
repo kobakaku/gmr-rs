@@ -1,0 +1,11 @@
+{
+  "name": "NOT_gate",
+  "description": "Simple NOT gate",
+  "gates": [
+    {
+      "id": 2,
+      "type": "NOT",
+      "in": [1]
+    }
+  ]
+}
