@@ -1,0 +1,44 @@
+{
+  "name": "full_adder",
+  "description": "Full-adder: adds three bits with carry",
+  "metadata": {
+    "input_count": 3,
+    "outputs": [
+      {
+        "name": "sum",
+        "gate_id": 102
+      },
+      {
+        "name": "carry",
+        "gate_id": 104
+      }
+    ]
+  },
+  "gates": [
+    {
+      "id": 100,
+      "type": "XOR",
+      "in": [1, 2]
+    },
+    {
+      "id": 101,
+      "type": "AND",
+      "in": [1, 2]
+    },
+    {
+      "id": 102,
+      "type": "XOR",
+      "in": [100, 3]
+    },
+    {
+      "id": 103,
+      "type": "AND",
+      "in": [100, 3]
+    },
+    {
+      "id": 104,
+      "type": "OR",
+      "in": [101, 103]
+    }
+  ]
+}

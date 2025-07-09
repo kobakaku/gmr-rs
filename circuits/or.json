@@ -1,6 +1,15 @@
 {
   "name": "OR_gate",
   "description": "Simple OR gate using De Morgan's law",
+  "metadata": {
+    "input_count": 2,
+    "outputs": [
+      {
+        "name": "result",
+        "gate_id": 3
+      }
+    ]
+  },
   "gates": [
     {
       "id": 3,

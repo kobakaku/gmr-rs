@@ -1,101 +1,103 @@
 use anyhow::Result;
-use gmw_rs::{evaluate_circuit_two_party, reconstruct_shares, secret_share, Circuit};
 use std::collections::HashMap;
 use std::env;
 
-fn main() -> Result<()> {
-    let args: Vec<String> = env::args().collect();
+use gmw_rs::{execute_circuit, reconstruct_shares, secret_share, Circuit, LocalEvaluator};
 
-    if args.len() == 4 {
-        // Format: cargo run -- <circuit_file> <input1> <input2>
-        let circuit_file = &args[1];
-        let input1 = args[2].parse::<u8>()? != 0;
-        let input2 = args[3].parse::<u8>()? != 0;
-        run_two_input_circuit(circuit_file, input1, input2)?;
-    } else if args.len() == 3 {
-        // Format: cargo run -- <circuit_file> <input>
-        let circuit_file = &args[1];
-        let input = args[2].parse::<u8>()? != 0;
-        run_single_input_circuit(circuit_file, input)?;
-    } else {
-        println!("Usage:");
-        println!("  cargo run -- <circuit.json> <input>         - Single input circuit (NOT)");
-        println!(
-            "  cargo run -- <circuit.json> <input1> <input2> - Two input circuit (AND/OR/XOR)"
-        );
-        println!("Examples:");
-        println!("  cargo run -- circuits/not.json 1");
-        println!("  cargo run -- circuits/and.json 1 0");
+/// Run a circuit with any number of inputs
+fn run_circuit(circuit_file: &str, inputs: Vec<bool>) -> Result<()> {
+    let circuit = Circuit::from_file(circuit_file)?;
+
+    // Validate input count
+    if circuit.metadata.input_count > 0 && inputs.len() != circuit.metadata.input_count {
+        return Err(anyhow::anyhow!(
+            "Circuit expects {} inputs but got {}",
+            circuit.metadata.input_count,
+            inputs.len()
+        ));
+    }
+
+    // Create secret shares for all inputs
+    let mut alice_shares = HashMap::new();
+    let mut bob_shares = HashMap::new();
+
+    for (i, &input) in inputs.iter().enumerate() {
+        let (alice_share, bob_share) = secret_share(input);
+        let wire_id = (i + 1) as u32; // Wire IDs start from 1
+        alice_shares.insert(wire_id, alice_share);
+        bob_shares.insert(wire_id, bob_share);
+    }
+
+    // Evaluate circuit
+    let (alice_result_shares, bob_result_shares) =
+        execute_circuit(&circuit, &alice_shares, &bob_shares)?;
+
+    println!("Inputs: {inputs:?}");
+
+    // Handle outputs using metadata
+    if circuit.metadata.outputs.is_empty() {
+        return Err(anyhow::anyhow!(
+            "Circuit has no output metadata. Please add metadata to the circuit JSON file."
+        ));
+    }
+
+    println!("Outputs:");
+    for output_info in &circuit.metadata.outputs {
+        let alice_output = alice_result_shares
+            .get(&output_info.gate_id)
+            .copied()
+            .ok_or_else(|| anyhow::anyhow!("Missing output gate {}", output_info.gate_id))?;
+        let bob_output = bob_result_shares
+            .get(&output_info.gate_id)
+            .copied()
+            .ok_or_else(|| anyhow::anyhow!("Missing output gate {}", output_info.gate_id))?;
+
+        let result = reconstruct_shares(alice_output, bob_output);
+        print!("  {} = {}", output_info.name, result);
+
+        // Always verify using local circuit evaluation
+        let expected = LocalEvaluator::get_output(&circuit, &inputs, output_info.gate_id)?;
+        assert_eq!(result, expected);
+        print!(" ✓");
+        println!();
     }
 
     Ok(())
 }
 
-fn run_single_input_circuit(circuit_file: &str, input: bool) -> Result<()> {
-    let circuit = Circuit::from_file(circuit_file)?;
-
-    // Create secret shares
-    let (alice_share, bob_share) = secret_share(input);
-
-    // Set up input shares
-    let mut alice_shares = HashMap::new();
-    let mut bob_shares = HashMap::new();
-
-    alice_shares.insert(1, alice_share); // wire 1: input
-    bob_shares.insert(1, bob_share);
-
-    // Evaluate circuit
-    let (alice_output, bob_output) =
-        evaluate_circuit_two_party(&circuit, &alice_shares, &bob_shares)?;
-
-    // Reconstruct result
-    let result = reconstruct_shares(alice_output, bob_output);
-
-    println!("Input: {input} -> Output: {result}");
-
-    // Calculate expected result
-    let expected = match circuit.name.as_str() {
-        "NOT_gate" => !input,
-        _ => !input, // Default for single input
-    };
-    assert_eq!(result, expected);
-
-    Ok(())
+fn print_usage() {
+    println!("Usage: cargo run -- <circuit.json> <input1> [input2] [input3] ...");
+    println!();
+    println!("Examples:");
+    println!("  cargo run -- circuits/not.json 1");
+    println!("  cargo run -- circuits/and.json 1 0");
+    println!("  cargo run -- circuits/half_adder.json 1 1");
+    println!("  cargo run -- circuits/full_adder.json 1 1 0");
+    println!("  cargo run -- circuits/two_bit_equality.json 1 0 1 0");
+    println!("  cargo run -- circuits/mux_2to1.json 1 0 1");
 }
 
-fn run_two_input_circuit(circuit_file: &str, input1: bool, input2: bool) -> Result<()> {
-    let circuit = Circuit::from_file(circuit_file)?;
+fn main() -> Result<()> {
+    let args: Vec<String> = env::args().collect();
 
-    // Create secret shares
-    let (alice_share1, bob_share1) = secret_share(input1);
-    let (alice_share2, bob_share2) = secret_share(input2);
+    if args.len() < 2 {
+        print_usage();
+        return Ok(());
+    }
 
-    // Set up input shares
-    let mut alice_shares = HashMap::new();
-    let mut bob_shares = HashMap::new();
+    let circuit_file = &args[1];
 
-    alice_shares.insert(1, alice_share1); // wire 1: input1
-    alice_shares.insert(2, alice_share2); // wire 2: input2
-    bob_shares.insert(1, bob_share1);
-    bob_shares.insert(2, bob_share2);
+    // Parse all remaining arguments as boolean inputs
+    let inputs: Result<Vec<bool>, _> = args[2..]
+        .iter()
+        .map(|s| s.parse::<u8>().map(|v| v != 0))
+        .collect();
 
-    // Evaluate circuit
-    let (alice_output, bob_output) =
-        evaluate_circuit_two_party(&circuit, &alice_shares, &bob_shares)?;
+    let inputs = inputs?;
 
-    // Reconstruct result
-    let result = reconstruct_shares(alice_output, bob_output);
+    if inputs.is_empty() && !circuit_file.contains("help") {
+        println!("Warning: No inputs provided");
+    }
 
-    println!("Inputs: {input1} & {input2} -> Output: {result}");
-
-    // Calculate expected result
-    let expected = match circuit.name.as_str() {
-        "AND_gate" => input1 & input2,
-        "OR_gate" => input1 | input2,
-        "XOR_gate" => input1 ^ input2,
-        _ => input1 & input2, // Default
-    };
-    assert_eq!(result, expected);
-
-    Ok(())
+    run_circuit(circuit_file, inputs)
 }
