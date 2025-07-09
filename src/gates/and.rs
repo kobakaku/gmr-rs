@@ -1,46 +1,43 @@
 use crate::ot::BitOT;
 use anyhow::Result;
+use rand::random;
 
-/// AND gate implementation using oblivious transfer
+/// Secure AND gate implementation using 1-out-of-4 OT
 ///
-/// GMW protocol for AND: x & y = (x0 ⊕ x1) & (y0 ⊕ y1)
+/// GMW protocol for AND: z = x & y = (x0 ⊕ x1) & (y0 ⊕ y1)
 /// = x0&y0 ⊕ x0&y1 ⊕ x1&y0 ⊕ x1&y1
 ///
-/// Party 0 computes x0&y0 locally
-/// Party 1 computes x1&y1 locally  
-/// Cross terms x0&y1 and x1&y0 computed via OT
+/// To avoid leaking Alice's x0 to Bob, we use:
+/// - Alice generates random r (her output share)
+/// - Bob receives his share via 1-out-of-4 OT based on his (x1, y1)
+/// - The 4 messages are precomputed for Bob's possible inputs
 pub fn and_gate(alice_x: bool, alice_y: bool, bob_x: bool, bob_y: bool) -> Result<(bool, bool)> {
-    // First OT: Alice (party 0) sends her x share to Bob based on his y share
-    // Bob chooses between Alice's (0, x0) based on his y share
-    let alice_messages = (false, alice_x); // Messages: [0, x0]
-    let bob_choice = bob_y; // Bob's choice bit is his y share
+    // Alice generates random bit r (this becomes her output share)
+    let alice_share = random::<bool>();
 
-    let (_ot1_sender_state, ot1_receiver_state) = BitOT::execute(alice_messages, bob_choice)?;
+    // Alice's local computation: x0 & y0
+    let alice_local = alice_x & alice_y;
 
-    // Bob receives: x0 if y1=1, 0 if y1=0 → x0&y1
-    let cross_term1 = ot1_receiver_state.received_bit;
+    // Precompute messages for Bob's possible inputs (x1, y1)
+    // Bob should receive: z ⊕ r where z is the full AND result
+    let messages = (
+        // (x1=0, y1=0): z = x0&y0, so Bob gets x0&y0 ⊕ r
+        alice_local ^ alice_share,
+        // (x1=0, y1=1): z = x0&y0 ⊕ x0&y1 = x0&y0 ⊕ x0 = x0&(y0⊕1), so Bob gets x0&(y0⊕1) ⊕ r
+        alice_local ^ alice_x ^ alice_share,
+        // (x1=1, y1=0): z = x0&y0 ⊕ x1&y0 = x0&y0 ⊕ y0 = y0&(x0⊕1), so Bob gets y0&(x0⊕1) ⊕ r
+        alice_local ^ alice_y ^ alice_share,
+        // (x1=1, y1=1): z = x0&y0 ⊕ x0&y1 ⊕ x1&y0 ⊕ x1&y1 = x0&y0 ⊕ x0 ⊕ y0 ⊕ 1, so Bob gets that ⊕ r
+        alice_local ^ alice_x ^ alice_y ^ true ^ alice_share,
+    );
 
-    // Second OT: Bob (party 1) sends his x share to Alice based on her y share
-    // Alice chooses between Bob's (0, x1) based on her y share
-    let bob_messages = (false, bob_x); // Messages: [0, x1]
-    let alice_choice = alice_y; // Alice's choice bit is her y share
+    // Bob's choice bits are his input shares
+    let bob_choice = (bob_x, bob_y);
 
-    let (_ot2_sender_state, ot2_receiver_state) = BitOT::execute(bob_messages, alice_choice)?;
+    // Execute 1-out-of-4 OT
+    let bob_share = BitOT::execute_1_out_of_4(messages, bob_choice)?;
 
-    // Alice receives: x1 if y0=1, 0 if y0=0 → x1&y0
-    let cross_term2 = ot2_receiver_state.received_bit;
-
-    // Compute local terms
-    let alice_local = alice_x & alice_y; // x0 & y0
-    let bob_local = bob_x & bob_y; // x1 & y1
-
-    // Combine all terms: x&y = (x0&y0) ⊕ (x0&y1) ⊕ (x1&y0) ⊕ (x1&y1)
-    // Alice gets: (x0&y0) ⊕ (x1&y0) = alice_local ⊕ cross_term2
-    // Bob gets: (x0&y1) ⊕ (x1&y1) = cross_term1 ⊕ bob_local
-    let alice_result = alice_local ^ cross_term2;
-    let bob_result = cross_term1 ^ bob_local;
-
-    Ok((alice_result, bob_result))
+    Ok((alice_share, bob_share))
 }
 
 #[cfg(test)]
