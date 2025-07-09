@@ -1,0 +1,41 @@
+{
+  "name": "complex_circuit",
+  "description": "A more complex circuit verified using local evaluation",
+  "metadata": {
+    "input_count": 3,
+    "outputs": [
+      {
+        "name": "intermediate",
+        "gate_id": 100,
+        "verify_with_circuit": true
+      },
+      {
+        "name": "final",
+        "gate_id": 103,
+        "verify_with_circuit": true
+      }
+    ]
+  },
+  "gates": [
+    {
+      "id": 100,
+      "type": "AND",
+      "in": [1, 2]
+    },
+    {
+      "id": 101,
+      "type": "XOR",
+      "in": [2, 3]
+    },
+    {
+      "id": 102,
+      "type": "OR",
+      "in": [100, 101]
+    },
+    {
+      "id": 103,
+      "type": "NOT",
+      "in": [102]
+    }
+  ]
+}

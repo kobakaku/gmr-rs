@@ -1,6 +1,15 @@
 {
   "name": "AND_gate",
-  "description": "Simple AND gate using OT protocol",
+  "description": "Basic AND gate with two inputs",
+  "metadata": {
+    "input_count": 2,
+    "outputs": [
+      {
+        "name": "result",
+        "gate_id": 3
+      }
+    ]
+  },
   "gates": [
     {
       "id": 3,

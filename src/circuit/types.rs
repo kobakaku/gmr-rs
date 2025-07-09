@@ -8,6 +8,8 @@ pub struct Circuit {
     #[serde(default)]
     pub description: String,
     pub gates: Vec<Gate>,
+    #[serde(default)]
+    pub metadata: CircuitMetadata,
 }
 
 impl Circuit {
@@ -38,4 +40,16 @@ pub enum GateType {
     NOT,
     AND,
     OR,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CircuitMetadata {
+    pub input_count: usize,
+    pub outputs: Vec<OutputInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OutputInfo {
+    pub name: String,
+    pub gate_id: u32,
 }

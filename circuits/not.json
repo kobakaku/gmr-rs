@@ -1,6 +1,15 @@
 {
   "name": "NOT_gate",
   "description": "Simple NOT gate",
+  "metadata": {
+    "input_count": 1,
+    "outputs": [
+      {
+        "name": "result",
+        "gate_id": 2
+      }
+    ]
+  },
   "gates": [
     {
       "id": 2,

@@ -1,0 +1,35 @@
+{
+  "name": "mux_2to1",
+  "description": "2-to-1 multiplexer: selects between two inputs",
+  "metadata": {
+    "input_count": 3,
+    "outputs": [
+      {
+        "name": "result",
+        "gate_id": 103
+      }
+    ]
+  },
+  "gates": [
+    {
+      "id": 100,
+      "type": "NOT",
+      "in": [3]
+    },
+    {
+      "id": 101,
+      "type": "AND",
+      "in": [100, 1]
+    },
+    {
+      "id": 102,
+      "type": "AND",
+      "in": [3, 2]
+    },
+    {
+      "id": 103,
+      "type": "OR",
+      "in": [101, 102]
+    }
+  ]
+}

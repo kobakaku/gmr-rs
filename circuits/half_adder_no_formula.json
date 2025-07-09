@@ -1,0 +1,29 @@
+{
+  "name": "half_adder_no_formula",
+  "description": "Half-adder without expected formulas - uses circuit evaluation",
+  "metadata": {
+    "input_count": 2,
+    "outputs": [
+      {
+        "name": "sum",
+        "gate_id": 100
+      },
+      {
+        "name": "carry",
+        "gate_id": 101
+      }
+    ]
+  },
+  "gates": [
+    {
+      "id": 100,
+      "type": "XOR",
+      "in": [1, 2]
+    },
+    {
+      "id": 101,
+      "type": "AND",
+      "in": [1, 2]
+    }
+  ]
+}
