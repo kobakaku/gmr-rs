@@ -2,13 +2,13 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
 
+pub type WireId = u32;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Circuit {
     pub name: String,
-    #[serde(default)]
     pub description: String,
     pub gates: Vec<Gate>,
-    #[serde(default)]
     pub metadata: CircuitMetadata,
 }
 
@@ -27,11 +27,11 @@ impl Circuit {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Gate {
-    pub id: u32,
+    pub id: WireId,
     #[serde(rename = "type")]
     pub gate_type: GateType,
     #[serde(rename = "in")]
-    pub inputs: Vec<u32>,
+    pub inputs: Vec<WireId>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,12 +44,18 @@ pub enum GateType {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CircuitMetadata {
-    pub input_count: usize,
+    pub inputs: Vec<InputInfo>,
     pub outputs: Vec<OutputInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InputInfo {
+    pub name: String,
+    pub id: WireId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutputInfo {
     pub name: String,
-    pub gate_id: u32,
+    pub id: WireId,
 }

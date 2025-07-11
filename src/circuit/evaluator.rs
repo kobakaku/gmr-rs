@@ -1,4 +1,4 @@
-use crate::circuit::{Circuit, GateType};
+use crate::circuit::{Circuit, GateType, WireId};
 use anyhow::Result;
 use std::collections::HashMap;
 
@@ -7,12 +7,13 @@ pub struct LocalEvaluator;
 
 impl LocalEvaluator {
     /// Evaluate a circuit with given inputs and return all gate outputs
-    pub fn evaluate(circuit: &Circuit, inputs: &[bool]) -> Result<HashMap<u32, bool>> {
+    pub fn evaluate(circuit: &Circuit, inputs: &[bool]) -> Result<HashMap<WireId, bool>> {
         let mut wire_values = HashMap::new();
 
         // Initialize input wires
         for (i, &input) in inputs.iter().enumerate() {
-            wire_values.insert((i + 1) as u32, input);
+            let wire_id = circuit.metadata.inputs[i].id;
+            wire_values.insert(wire_id, input);
         }
 
         // Evaluate each gate in order
@@ -46,16 +47,16 @@ impl LocalEvaluator {
     }
 
     /// Get the output value for a specific gate
-    pub fn get_output(circuit: &Circuit, inputs: &[bool], gate_id: u32) -> Result<bool> {
+    pub fn get_output(circuit: &Circuit, inputs: &[bool], wire_id: WireId) -> Result<bool> {
         let wire_values = Self::evaluate(circuit, inputs)?;
         wire_values
-            .get(&gate_id)
+            .get(&wire_id)
             .copied()
-            .ok_or_else(|| anyhow::anyhow!("Gate {} not found in circuit", gate_id))
+            .ok_or_else(|| anyhow::anyhow!("Wire {} not found in circuit", wire_id))
     }
 
     /// Helper to get wire value with error handling
-    fn get_wire_value(wire_values: &HashMap<u32, bool>, wire_id: u32) -> Result<bool> {
+    fn get_wire_value(wire_values: &HashMap<WireId, bool>, wire_id: WireId) -> Result<bool> {
         wire_values
             .get(&wire_id)
             .copied()
@@ -66,7 +67,7 @@ impl LocalEvaluator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::circuit::{Circuit, CircuitMetadata, Gate, GateType, OutputInfo};
+    use crate::circuit::{Circuit, CircuitMetadata, Gate, GateType, InputInfo, OutputInfo};
 
     #[test]
     fn test_local_evaluator_and_gate() {
@@ -79,10 +80,19 @@ mod tests {
                 inputs: vec![1, 2],
             }],
             metadata: CircuitMetadata {
-                input_count: 2,
+                inputs: vec![
+                    InputInfo {
+                        name: "a".to_string(),
+                        id: 1,
+                    },
+                    InputInfo {
+                        name: "b".to_string(),
+                        id: 2,
+                    },
+                ],
                 outputs: vec![OutputInfo {
                     name: "result".to_string(),
-                    gate_id: 3,
+                    id: 3,
                 }],
             },
         };

@@ -2,11 +2,24 @@
   "name": "mux_2to1",
   "description": "2-to-1 multiplexer: selects between two inputs",
   "metadata": {
-    "input_count": 3,
+    "inputs": [
+      {
+        "name": "a",
+        "id": 1
+      },
+      {
+        "name": "b",
+        "id": 2
+      },
+      {
+        "name": "sel",
+        "id": 3
+      }
+    ],
     "outputs": [
       {
         "name": "result",
-        "gate_id": 103
+        "id": 103
       }
     ]
   },
