@@ -2,15 +2,24 @@
   "name": "half_adder",
   "description": "Half-adder: computes sum and carry for two bits",
   "metadata": {
-    "input_count": 2,
+    "inputs": [
+      {
+        "name": "a",
+        "id": 1
+      },
+      {
+        "name": "b",
+        "id": 2
+      }
+    ],
     "outputs": [
       {
         "name": "sum",
-        "gate_id": 100
+        "id": 100
       },
       {
         "name": "carry",
-        "gate_id": 101
+        "id": 101
       }
     ]
   },

@@ -2,11 +2,20 @@
   "name": "XOR_gate",
   "description": "Simple XOR gate",
   "metadata": {
-    "input_count": 2,
+    "inputs": [
+      {
+        "name": "a",
+        "id": 1
+      },
+      {
+        "name": "b",
+        "id": 2
+      }
+    ],
     "outputs": [
       {
         "name": "result",
-        "gate_id": 3
+        "id": 3
       }
     ]
   },

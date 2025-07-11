@@ -12,10 +12,12 @@ fn run_circuit(circuit_file: &str, inputs: Vec<bool>, use_3party: bool) -> Resul
     let circuit = Circuit::from_file(circuit_file)?;
 
     // Validate input count
-    if circuit.metadata.input_count > 0 && inputs.len() != circuit.metadata.input_count {
+    let expected_inputs = circuit.metadata.inputs.len();
+
+    if expected_inputs > 0 && inputs.len() != expected_inputs {
         return Err(anyhow::anyhow!(
             "Circuit expects {} inputs but got {}",
-            circuit.metadata.input_count,
+            expected_inputs,
             inputs.len()
         ));
     }
@@ -29,7 +31,7 @@ fn run_circuit(circuit_file: &str, inputs: Vec<bool>, use_3party: bool) -> Resul
 
         for (i, &input) in inputs.iter().enumerate() {
             let (share0, share1, share2) = secret_share_3party(input);
-            let wire_id = (i + 1) as u32;
+            let wire_id = circuit.metadata.inputs[i].id;
             party0_shares.insert(wire_id, share0);
             party1_shares.insert(wire_id, share1);
             party2_shares.insert(wire_id, share2);
@@ -48,7 +50,7 @@ fn run_circuit(circuit_file: &str, inputs: Vec<bool>, use_3party: bool) -> Resul
 
         for (i, &input) in inputs.iter().enumerate() {
             let (alice_share, bob_share) = secret_share(input);
-            let wire_id = (i + 1) as u32;
+            let wire_id = circuit.metadata.inputs[i].id;
             alice_shares.insert(wire_id, alice_share);
             bob_shares.insert(wire_id, bob_share);
         }
@@ -73,12 +75,14 @@ fn run_circuit(circuit_file: &str, inputs: Vec<bool>, use_3party: bool) -> Resul
     for output_info in &circuit.metadata.outputs {
         let result = match &result_shares {
             PartyShares::TwoParty { alice, bob } => {
-                let alice_output = alice.get(&output_info.gate_id).copied().ok_or_else(|| {
-                    anyhow::anyhow!("Missing output gate {}", output_info.gate_id)
-                })?;
-                let bob_output = bob.get(&output_info.gate_id).copied().ok_or_else(|| {
-                    anyhow::anyhow!("Missing output gate {}", output_info.gate_id)
-                })?;
+                let alice_output = alice
+                    .get(&output_info.id)
+                    .copied()
+                    .ok_or_else(|| anyhow::anyhow!("Missing output gate {}", output_info.id))?;
+                let bob_output = bob
+                    .get(&output_info.id)
+                    .copied()
+                    .ok_or_else(|| anyhow::anyhow!("Missing output gate {}", output_info.id))?;
                 reconstruct_shares(alice_output, bob_output)
             }
             PartyShares::ThreeParty {
@@ -86,15 +90,18 @@ fn run_circuit(circuit_file: &str, inputs: Vec<bool>, use_3party: bool) -> Resul
                 party1,
                 party2,
             } => {
-                let party0_output = party0.get(&output_info.gate_id).copied().ok_or_else(|| {
-                    anyhow::anyhow!("Missing output gate {}", output_info.gate_id)
-                })?;
-                let party1_output = party1.get(&output_info.gate_id).copied().ok_or_else(|| {
-                    anyhow::anyhow!("Missing output gate {}", output_info.gate_id)
-                })?;
-                let party2_output = party2.get(&output_info.gate_id).copied().ok_or_else(|| {
-                    anyhow::anyhow!("Missing output gate {}", output_info.gate_id)
-                })?;
+                let party0_output = party0
+                    .get(&output_info.id)
+                    .copied()
+                    .ok_or_else(|| anyhow::anyhow!("Missing output gate {}", output_info.id))?;
+                let party1_output = party1
+                    .get(&output_info.id)
+                    .copied()
+                    .ok_or_else(|| anyhow::anyhow!("Missing output gate {}", output_info.id))?;
+                let party2_output = party2
+                    .get(&output_info.id)
+                    .copied()
+                    .ok_or_else(|| anyhow::anyhow!("Missing output gate {}", output_info.id))?;
                 reconstruct_shares_3party(party0_output, party1_output, party2_output)
             }
         };
@@ -102,7 +109,7 @@ fn run_circuit(circuit_file: &str, inputs: Vec<bool>, use_3party: bool) -> Resul
         print!("  {} = {}", output_info.name, result);
 
         // Always verify using local circuit evaluation
-        let expected = LocalEvaluator::get_output(&circuit, &inputs, output_info.gate_id)?;
+        let expected = LocalEvaluator::get_output(&circuit, &inputs, output_info.id)?;
         assert_eq!(result, expected);
         print!(" ✓");
         println!();

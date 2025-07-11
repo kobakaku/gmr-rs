@@ -84,6 +84,24 @@ Circuits are defined in JSON format in the `circuits/` directory:
 {
   "name": "AND_gate",
   "description": "Simple AND gate with OT",
+  "metadata": {
+    "inputs": [
+      {
+        "name": "a",
+        "wire_id": 1
+      },
+      {
+        "name": "b", 
+        "wire_id": 2
+      }
+    ],
+    "outputs": [
+      {
+        "name": "result",
+        "gate_id": 3
+      }
+    ]
+  },
   "gates": [
     {
       "id": 3,
@@ -114,6 +132,15 @@ The GMW protocol implementation follows these steps:
 {
   "name": "AND_gate",
   "description": "AND gate requiring Oblivious Transfer",
+  "metadata": {
+    "inputs": [
+      {"name": "a", "wire_id": 1},
+      {"name": "b", "wire_id": 2}
+    ],
+    "outputs": [
+      {"name": "result", "gate_id": 3}
+    ]
+  },
   "gates": [
     {"id": 3, "type": "AND", "in": [1, 2]}
   ]
@@ -125,19 +152,17 @@ The GMW protocol implementation follows these steps:
 {
   "name": "OR_gate", 
   "description": "OR gate using De Morgan's law",
+  "metadata": {
+    "inputs": [
+      {"name": "a", "wire_id": 1},
+      {"name": "b", "wire_id": 2}
+    ],
+    "outputs": [
+      {"name": "result", "gate_id": 3}
+    ]
+  },
   "gates": [
     {"id": 3, "type": "OR", "in": [1, 2]}
-  ]
-}
-```
-
-### Example 3: NOT Gate
-```json
-{
-  "name": "NOT_gate",
-  "description": "Simple NOT gate",
-  "gates": [
-    {"id": 2, "type": "NOT", "in": [1]}
   ]
 }
 ```

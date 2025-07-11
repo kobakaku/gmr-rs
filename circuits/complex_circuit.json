@@ -2,17 +2,28 @@
   "name": "complex_circuit",
   "description": "A more complex circuit verified using local evaluation",
   "metadata": {
-    "input_count": 3,
+    "inputs": [
+      {
+        "name": "a",
+        "id": 1
+      },
+      {
+        "name": "b",
+        "id": 2
+      },
+      {
+        "name": "c",
+        "id": 3
+      }
+    ],
     "outputs": [
       {
         "name": "intermediate",
-        "gate_id": 100,
-        "verify_with_circuit": true
+        "id": 100
       },
       {
         "name": "final",
-        "gate_id": 103,
-        "verify_with_circuit": true
+        "id": 103
       }
     ]
   },

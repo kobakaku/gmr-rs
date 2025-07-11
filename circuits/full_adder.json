@@ -2,15 +2,28 @@
   "name": "full_adder",
   "description": "Full-adder: adds three bits with carry",
   "metadata": {
-    "input_count": 3,
+    "inputs": [
+      {
+        "name": "a",
+        "id": 1
+      },
+      {
+        "name": "b",
+        "id": 2
+      },
+      {
+        "name": "cin",
+        "id": 3
+      }
+    ],
     "outputs": [
       {
         "name": "sum",
-        "gate_id": 102
+        "id": 102
       },
       {
         "name": "carry",
-        "gate_id": 104
+        "id": 104
       }
     ]
   },
