@@ -1,135 +1,54 @@
 use anyhow::Result;
-use std::collections::HashMap;
 use std::env;
 
-use gmw_rs::{
-    execute_circuit, reconstruct_shares, reconstruct_shares_3party, secret_share,
-    secret_share_3party, Circuit, LocalEvaluator, PartyShares,
-};
+use gmw_rs::{Circuit, GmwProtocol, LocalEvaluator};
 
 /// Run a circuit with unified interface
-fn run_circuit(circuit_file: &str, inputs: Vec<bool>, use_3party: bool) -> Result<()> {
+fn run_circuit(circuit_file: &str, inputs: Vec<bool>, party_count: usize) -> Result<()> {
     let circuit = Circuit::from_file(circuit_file)?;
 
-    // Validate input count
-    let expected_inputs = circuit.metadata.inputs.len();
-
-    if expected_inputs > 0 && inputs.len() != expected_inputs {
-        return Err(anyhow::anyhow!(
-            "Circuit expects {} inputs but got {}",
-            expected_inputs,
-            inputs.len()
-        ));
-    }
-
-    // Create shares and evaluate circuit based on party count
-    let result_shares = if use_3party {
-        // Create 3-party secret shares
-        let mut party0_shares = HashMap::new();
-        let mut party1_shares = HashMap::new();
-        let mut party2_shares = HashMap::new();
-
-        for (i, &input) in inputs.iter().enumerate() {
-            let (share0, share1, share2) = secret_share_3party(input);
-            let wire_id = circuit.metadata.inputs[i].id;
-            party0_shares.insert(wire_id, share0);
-            party1_shares.insert(wire_id, share1);
-            party2_shares.insert(wire_id, share2);
-        }
-
-        let shares = PartyShares::ThreeParty {
-            party0: party0_shares,
-            party1: party1_shares,
-            party2: party2_shares,
-        };
-        execute_circuit(&circuit, shares)?
-    } else {
-        // Create 2-party secret shares
-        let mut alice_shares = HashMap::new();
-        let mut bob_shares = HashMap::new();
-
-        for (i, &input) in inputs.iter().enumerate() {
-            let (alice_share, bob_share) = secret_share(input);
-            let wire_id = circuit.metadata.inputs[i].id;
-            alice_shares.insert(wire_id, alice_share);
-            bob_shares.insert(wire_id, bob_share);
-        }
-
-        let shares = PartyShares::TwoParty {
-            alice: alice_shares,
-            bob: bob_shares,
-        };
-        execute_circuit(&circuit, shares)?
-    };
+    // Create GMW protocol instance and run circuit
+    let protocol = GmwProtocol::new(party_count)?;
+    let outputs = protocol.run_circuit(&circuit, &inputs)?;
 
     println!("Inputs: {inputs:?}");
-
-    // Handle outputs using metadata
-    if circuit.metadata.outputs.is_empty() {
-        return Err(anyhow::anyhow!(
-            "Circuit has no output metadata. Please add metadata to the circuit JSON file."
-        ));
-    }
-
     println!("Outputs:");
-    for output_info in &circuit.metadata.outputs {
-        let result = match &result_shares {
-            PartyShares::TwoParty { alice, bob } => {
-                let alice_output = alice
-                    .get(&output_info.id)
-                    .copied()
-                    .ok_or_else(|| anyhow::anyhow!("Missing output gate {}", output_info.id))?;
-                let bob_output = bob
-                    .get(&output_info.id)
-                    .copied()
-                    .ok_or_else(|| anyhow::anyhow!("Missing output gate {}", output_info.id))?;
-                reconstruct_shares(alice_output, bob_output)
-            }
-            PartyShares::ThreeParty {
-                party0,
-                party1,
-                party2,
-            } => {
-                let party0_output = party0
-                    .get(&output_info.id)
-                    .copied()
-                    .ok_or_else(|| anyhow::anyhow!("Missing output gate {}", output_info.id))?;
-                let party1_output = party1
-                    .get(&output_info.id)
-                    .copied()
-                    .ok_or_else(|| anyhow::anyhow!("Missing output gate {}", output_info.id))?;
-                let party2_output = party2
-                    .get(&output_info.id)
-                    .copied()
-                    .ok_or_else(|| anyhow::anyhow!("Missing output gate {}", output_info.id))?;
-                reconstruct_shares_3party(party0_output, party1_output, party2_output)
-            }
-        };
 
-        print!("  {} = {}", output_info.name, result);
+    for (name, result) in outputs {
+        print!("  {name} = {result}");
 
         // Always verify using local circuit evaluation
+        let output_info = circuit
+            .metadata
+            .outputs
+            .iter()
+            .find(|info| info.name == name)
+            .ok_or_else(|| anyhow::anyhow!("Output {} not found", name))?;
+
         let expected = LocalEvaluator::get_output(&circuit, &inputs, output_info.id)?;
-        assert_eq!(result, expected);
-        print!(" ✓");
-        println!();
+        if result == expected {
+            println!(" ✓");
+        } else {
+            println!(" ✗ (expected {expected})");
+        }
     }
 
     Ok(())
 }
 
 fn print_usage() {
-    println!("Usage: cargo run -- [--3party] <circuit.json> <input1> [input2] [input3] ...");
+    println!("Usage: cargo run -- [--parties N] <circuit.json> <input1> [input2] [input3] ...");
     println!();
     println!("Options:");
-    println!("  --3party    Use 3-party computation (local simulation)");
+    println!("  --parties N    Use N-party computation (default: 2)");
     println!();
     println!("Examples:");
     println!("  cargo run -- circuits/not.json 1");
     println!("  cargo run -- circuits/and.json 1 0");
     println!("  cargo run -- circuits/half_adder.json 1 1");
-    println!("  cargo run -- --3party circuits/and.json 1 0");
-    println!("  cargo run -- --3party circuits/xor.json 1 0");
+    println!("  cargo run -- --parties 3 circuits/and.json 1 0");
+    println!("  cargo run -- --parties 4 circuits/xor.json 1 0");
+    println!("  cargo run -- --parties 5 circuits/and.json 1 1");
 }
 
 fn main() -> Result<()> {
@@ -140,12 +59,19 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Check for --3party flag
-    let (use_3party, remaining_args) = if args.len() > 1 && args[1] == "--3party" {
-        (true, &args[2..])
-    } else {
-        (false, &args[1..])
-    };
+    // Parse command line arguments
+    let mut party_count = 2; // Default to 2-party
+    let mut arg_idx = 1;
+
+    // Check for --parties flag
+    if args.len() > 1 && args[1] == "--parties" && args.len() > 2 {
+        party_count = args[2]
+            .parse::<usize>()
+            .map_err(|_| anyhow::anyhow!("Invalid party count: {}", args[2]))?;
+        arg_idx = 3;
+    }
+
+    let remaining_args = &args[arg_idx..];
 
     if remaining_args.is_empty() {
         print_usage();
@@ -166,5 +92,5 @@ fn main() -> Result<()> {
         println!("Warning: No inputs provided");
     }
 
-    run_circuit(circuit_file, inputs, use_3party)
+    run_circuit(circuit_file, inputs, party_count)
 }

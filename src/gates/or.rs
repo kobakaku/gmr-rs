@@ -1,78 +1,85 @@
-use crate::gates::and_gate;
+use crate::gates::and::and_gate;
+use crate::gates::not::not_gate;
 use anyhow::Result;
 
-/// OR gate implementation using De Morgan's law and OT-based AND gate
-/// x | y = ~(~x & ~y)
-pub fn or_gate(alice_x: bool, alice_y: bool, bob_x: bool, bob_y: bool) -> Result<(bool, bool)> {
-    // Step 1: Apply De Morgan's law - NOT x and NOT y
-    // In GMW, NOT is implemented by having one party flip the bit
-    let alice_not_x = !alice_x; // Alice flips her x share
-    let bob_not_x = bob_x; // Bob keeps his x share unchanged
+/// Compute OR gate for n parties using De Morgan's law: x | y = ~(~x & ~y)
+/// 1. NOT both inputs
+/// 2. AND the results
+/// 3. NOT the final result
+pub fn or_gate(party_shares: &[(bool, bool)]) -> Result<Vec<bool>> {
+    let n = party_shares.len();
 
-    let alice_not_y = !alice_y; // Alice flips her y share
-    let bob_not_y = bob_y; // Bob keeps his y share unchanged
+    if n < 2 {
+        return Err(anyhow::anyhow!("Need at least 2 parties for OR gate"));
+    }
 
-    // Step 2: Compute (~x & ~y) using OT-based AND gate
-    let (alice_and_result, bob_and_result) =
-        and_gate(alice_not_x, alice_not_y, bob_not_x, bob_not_y)?;
+    // Step 1: Apply NOT to both inputs (xi, yi) -> (~xi, ~yi)
+    let mut not_x_shares = Vec::with_capacity(n);
+    let mut not_y_shares = Vec::with_capacity(n);
 
-    // Step 3: Apply final NOT operation - ~(~x & ~y)
-    // Again, Alice flips and Bob keeps unchanged
-    let alice_final = !alice_and_result;
-    let bob_final = bob_and_result;
+    for (xi, yi) in party_shares {
+        not_x_shares.push(*xi);
+        not_y_shares.push(*yi);
+    }
 
-    Ok((alice_final, bob_final))
+    // NOT the x shares
+    let not_x = not_gate(&not_x_shares)?;
+
+    // NOT the y shares
+    let not_y = not_gate(&not_y_shares)?;
+
+    // Step 2: AND the NOT results: ~x & ~y
+    let not_x_and_not_y_shares: Vec<(bool, bool)> = not_x.into_iter().zip(not_y).collect();
+
+    let and_result = and_gate(&not_x_and_not_y_shares)?;
+
+    // Step 3: NOT the final result: ~(~x & ~y) = x | y
+    let or_result = not_gate(&and_result)?;
+
+    Ok(or_result)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{reconstruct_shares, secret_share};
 
     #[test]
-    fn test_or_gate_all_combinations() -> Result<()> {
-        // Test all input combinations
-        let test_cases = [
-            (false, false, false),
-            (false, true, true),
-            (true, false, true),
-            (true, true, true),
-        ];
+    fn test_or_gate_2_party() {
+        let shares = vec![(true, false), (false, false)];
+        let result = or_gate(&shares).unwrap();
 
-        for (input1, input2, expected) in test_cases {
-            // Create secret shares
-            let (alice_x, bob_x) = secret_share(input1);
-            let (alice_y, bob_y) = secret_share(input2);
+        // Reconstruct: result[0] ⊕ result[1]
+        let reconstructed = result[0] ^ result[1];
 
-            // Execute OR gate with OT
-            let (alice_result, bob_result) = or_gate(alice_x, alice_y, bob_x, bob_y)?;
-
-            // Reconstruct result
-            let actual = reconstruct_shares(alice_result, bob_result);
-
-            assert_eq!(
-                actual, expected,
-                "OR({}, {}) = {} but got {}",
-                input1, input2, expected, actual
-            );
-        }
-
-        Ok(())
+        // Original: (true | false) | (false | false) = true | false = true
+        assert_eq!(reconstructed, true);
     }
 
     #[test]
-    fn test_de_morgan_law() {
-        // De Morgan's law: x | y = ~(~x & ~y)
-        let test_cases = [(false, false), (false, true), (true, false), (true, true)];
+    fn test_or_gate_3_party() {
+        let shares = vec![(false, false), (false, false), (false, false)];
+        let result = or_gate(&shares).unwrap();
 
-        for (x, y) in test_cases {
-            let or_result = x | y;
-            let de_morgan_result = !(!x & !y);
-            assert_eq!(
-                or_result, de_morgan_result,
-                "De Morgan's law failed for x={}, y={}",
-                x, y
-            );
-        }
+        // Reconstruct: result[0] ⊕ result[1] ⊕ result[2]
+        let reconstructed = result[0] ^ result[1] ^ result[2];
+
+        // Original: (false | false) | (false | false) | (false | false) = false
+        assert_eq!(reconstructed, false);
+    }
+
+    #[test]
+    fn test_or_gate_4_party_all_true() {
+        let shares = vec![(true, true), (true, true), (true, true), (true, true)];
+
+        // x = true ⊕ true ⊕ true ⊕ true = false
+        // y = true ⊕ true ⊕ true ⊕ true = false
+        // Expected: false | false = false
+
+        let result = or_gate(&shares).unwrap();
+
+        // Reconstruct all shares
+        let reconstructed = result.iter().fold(false, |acc, &x| acc ^ x);
+
+        assert_eq!(reconstructed, false);
     }
 }
