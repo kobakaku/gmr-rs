@@ -202,7 +202,7 @@ dependencies = [
 [[package]]
 name = "oblivious-transfer-rs"
 version = "0.1.0"
-source = "git+https://github.com/kobakaku/oblivious-transfer-rs?rev=570ea6abf204b1b01ab2d6851d83807878f23f24#570ea6abf204b1b01ab2d6851d83807878f23f24"
+source = "git+https://github.com/kobakaku/oblivious-transfer-rs?rev=6f0dddb3b9a55b46cb27db7858a1f0c5d0af9541#6f0dddb3b9a55b46cb27db7858a1f0c5d0af9541"
 dependencies = [
  "anyhow",
  "rand",
